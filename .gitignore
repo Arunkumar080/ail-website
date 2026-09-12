@@ -427,3 +427,31 @@ FodyWeavers.xsd
 *.msix
 *.msm
 *.msp
+
+## ---------------------------------------------------------------
+## Node / Vite (this repo). The template above is Visual Studio's and
+## does not cover a JS build; node_modules and *.env are the only two
+## entries from it that apply here.
+## ---------------------------------------------------------------
+
+# Build output
+dist/
+*.local
+
+# Dependency directories
+node_modules/
+.npm
+
+# Env files (the *.env rule above misses a bare `.env.local` etc.)
+.env
+.env.*
+!.env.example
+
+# Editor / OS cruft
+.DS_Store
+.idea/
+*.swp
+
+# Vite / tooling caches
+.vite/
+.cache/

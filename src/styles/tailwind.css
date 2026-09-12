@@ -1,0 +1,28 @@
+/*
+ * Tailwind v4: theme tokens + utilities only. Preflight is intentionally not
+ * imported so the hand-written reset in global.css stays the single source of
+ * base styles. Utilities are imported unlayered (and after global.css) so a
+ * utility class always outranks the universal reset and ties with component
+ * classes are won by the utility.
+ *
+ * Class detection is scoped to src/ minus src/site (the public marketing
+ * shell has its own stylesheet, src/site/site.css).
+ */
+@import 'tailwindcss/theme.css' layer(theme);
+@import 'tailwindcss/utilities.css' source('../');
+@source not '../site';
+
+@theme {
+  --color-void: #000000;
+  --color-graphite: #0a0c0e;
+  --color-ink: #e6edf0;
+  --color-ink-dim: #7c878d;
+  --color-ink-mute: #3d474c;
+  --color-cyan: #5ff2ff;
+  --color-electric: #eafcff;
+  --color-hair: rgba(230, 237, 240, 0.09);
+  --font-sans: 'Inter Variable', Inter, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  /* the site-wide "narrow" threshold (<900px stacks panels) */
+  --breakpoint-wide: 900px;
+}
