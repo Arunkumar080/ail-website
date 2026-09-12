@@ -1,0 +1,78 @@
+/*
+ * The public marketing shell. Full Tailwind v4 (preflight + theme + utilities)
+ * scoped to src/site — the perimeter-node canvas app under src/ has its own
+ * reset (src/styles/global.css) and never loads this file.
+ *
+ * Tokens are the Claude Design "Aetherius Site Redesign" palette verbatim.
+ */
+@import 'tailwindcss' source('./');
+
+@theme {
+  /* surfaces: the page sits on #050506, the content shell on #08090a */
+  --color-void: #050506;
+  --color-shell: #08090a;
+  --color-cyan: #22d3ee;
+  --color-cyan-lift: #67e8f9;
+  /* type ramp: heading → base → nav/list → muted body → dim index */
+  --color-ink: #f7f9fa;
+  --color-base: #f2f5f7;
+  --color-quiet: #c9d1d8;
+  --color-muted: #9ba4ad;
+  --color-dim: #7f8891;
+  --font-sans: 'Schibsted Grotesk Variable', 'Schibsted Grotesk', 'Helvetica Neue', Arial, sans-serif;
+  --font-mono: 'JetBrains Mono Variable', 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
+  --default-font-family: var(--font-sans);
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@layer base {
+  html {
+    background: var(--color-void);
+    color-scheme: dark;
+    /* 64px nav + breathing room for every anchored section */
+    scroll-padding-top: 5rem;
+    scroll-behavior: smooth;
+    -webkit-text-size-adjust: 100%;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+  }
+  body {
+    background: var(--color-void);
+    color: var(--color-base);
+    line-height: 1.55;
+    text-transform: lowercase;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  ::selection {
+    background: rgba(34, 211, 238, 0.3);
+    color: #ffffff;
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-cyan);
+    outline-offset: 3px;
+  }
+}
+
+/* Operational graphics scale with their card; every stroke stays exactly 1.5px. */
+.gfx * {
+  vector-effect: non-scaling-stroke;
+}
+
+/* The one authored motion in the design: a cyan spark tracing the pipeline loop. */
+@keyframes ail-spark {
+  to {
+    stroke-dashoffset: -120;
+  }
+}
+.ail-spark {
+  animation: ail-spark 5s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ail-spark {
+    animation: none;
+  }
+}
