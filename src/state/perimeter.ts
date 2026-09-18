@@ -107,6 +107,19 @@ export const perimeter = {
   },
   /** Normalised pointer in [-1, 1]; +y is up (matches three.js). */
   pointer: { x: 0, y: 0 },
+  /**
+   * Bottom edge of the header chrome (`.node__top`) in CSS px, republished by
+   * PerimeterNode whenever it resizes. CameraRig reads it per frame to frame
+   * the scene in the clear area below the header instead of the whole
+   * viewport, so the subject is never hidden behind the panel.
+   */
+  chromeTopPx: 0,
+  /**
+   * Top edge of the bottom chrome (the CTA / controller bar) in CSS px, or the
+   * viewport height when a mode has none. With chromeTopPx this gives the clear
+   * band the scene may occupy.
+   */
+  chromeBottomPx: 0,
   /** performance.now() of the last submitted intent. */
   surgeAt: -1e9,
   surge() {

@@ -1,6 +1,7 @@
+import { useEffect, useRef } from 'react';
 import { FabricScene } from '../fabric/FabricScene.tsx';
 import { useGlobalShortcuts } from '../hooks/useGlobalShortcuts.ts';
-import { useListening, useMode } from '../state/perimeter.ts';
+import { perimeter, useListening, useMode } from '../state/perimeter.ts';
 import { ClusterVisualizer } from './ClusterVisualizer.tsx';
 import { ControllerBar } from './ControllerBar.tsx';
 import { Gateway } from './Gateway.tsx';
@@ -26,6 +27,7 @@ import { VividConsole } from './VividConsole.tsx';
  */
 export function PerimeterNode() {
   useGlobalShortcuts();
+  const topRef = useRef<HTMLElement>(null);
   const listening = useListening();
   const mode = useMode();
   const simulator = mode === 'simulator';
@@ -33,6 +35,33 @@ export function PerimeterNode() {
   const phantom = mode === 'phantom';
   const gateway = mode === 'gateway';
   const entry = !simulator && !ledger && !phantom && !gateway;
+
+  // Publish the header's footprint for CameraRig. The panel is sized by its
+  // tallest child (the telemetry column), so it is far taller than a title bar
+  // and would otherwise sit on top of the scene. Written straight to the store
+  // rather than React state: the rig reads it per frame and must not re-render.
+  useEffect(() => {
+    const top = topRef.current;
+    const grid = top?.parentElement;
+    if (!top || !grid) return;
+    const measure = () => {
+      perimeter.chromeTopPx = top.getBoundingClientRect().bottom;
+      // The bottom element differs per mode (CTA in the gateway, terminal or
+      // controller bar elsewhere) and some modes have none.
+      const bottom = grid.querySelector('.node__bottom, .gate__cta');
+      perimeter.chromeBottomPx = bottom ? bottom.getBoundingClientRect().top : window.innerHeight;
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(top);
+    ro.observe(grid);
+    window.addEventListener('resize', measure);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener('resize', measure);
+    };
+  }, [mode]);
+
   return (
     <main className="node" data-listening={listening} data-mode={mode}>
       <div className="node__fabric" aria-hidden="true">
@@ -42,7 +71,7 @@ export function PerimeterNode() {
       {ledger && <LedgerLabels />}
 
       <div className="node__grid" data-mode={mode}>
-        <header className="node__top">
+        <header className="node__top" ref={topRef}>
           <ModeNav />
           <Telemetry />
         </header>
