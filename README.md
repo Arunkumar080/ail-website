@@ -40,74 +40,97 @@ checks; see [Verifying a change](#verifying-a-change).
 
 ---
 
-## Serving the build locally
+## Deploying
 
 ```bash
 ./scripts/deploy.sh          # build → publish → configure nginx → reload → verify
 ```
 
-One idempotent script takes the repo from source to a running host on **port 9090**, and leaves
-nginx registered with launchd so it comes back by itself. Re-run it after any change; it is safe to
-run as often as you like.
+One idempotent script takes the repo from source to a served site on **port 9090** and leaves nginx
+registered with the init system, so it comes back by itself after a reboot. It handles the Ubuntu /
+Debian deploy target (apt, `sites-available`, systemd) and a macOS dev box (Homebrew, `servers/`,
+launchd) from the same entry point. Re-run it after any change; it is safe to run as often as you
+like.
 
-| Step      | What happens                                                                              |
-| --------- | ----------------------------------------------------------------------------------------- |
-| toolchain | `brew install nginx` if it is missing                                                       |
-| build     | `npm ci` when the lockfile has moved, then `npm run build`                                  |
-| publish   | `rsync --delete` of `dist/` into `$(brew --prefix)/var/www/ail-website`                     |
-| configure | renders `deploy/nginx/ail-website.conf` into the nginx config dir, `nginx -t`, then reloads |
-| verify    | asserts `/` and `/simulator/` answer 200 and an unknown path answers 404                    |
+| Step      | What happens                                                                                  |
+| --------- | ----------------------------------------------------------------------------------------------- |
+| toolchain | installs whatever is missing of `nginx`, `curl`, `rsync` (`apt-get`, or `brew` on the dev box)   |
+| build     | `npm ci` when the lockfile has moved, then `npm run build`                                       |
+| publish   | `rsync --delete` of `dist/` into `/var/www/ail-website`                                          |
+| configure | renders `deploy/nginx/ail-website.conf` into the nginx config dir, `nginx -t`, then reloads      |
+| service   | `systemctl enable --now nginx`, so it starts at boot                                             |
+| verify    | asserts `/` and `/simulator/` answer 200 and an unknown path answers 404                         |
 
-| Flag            | Use                                                        |
-| --------------- | ----------------------------------------------------------- |
-| `--port N`      | listen somewhere other than 9090                             |
-| `--webroot P`   | publish somewhere other than the Homebrew prefix             |
-| `--site-url U`  | bake `VITE_SITE_URL` into the build's social tags            |
-| `--in-place`    | serve `dist/` where it lies instead of copying it out        |
-| `--skip-build`  | re-publish the existing `dist/`                              |
-| `--no-service`  | write the config and reload, but leave launchd alone         |
+| Flag            | Use                                                                    |
+| --------------- | ------------------------------------------------------------------------ |
+| `--port N`      | listen somewhere other than 9090                                          |
+| `--webroot P`   | publish somewhere other than `/var/www/ail-website`                       |
+| `--site-url U`  | bake `VITE_SITE_URL` into the build's social tags                         |
+| `--in-place`    | serve `dist/` where it lies instead of copying it out                     |
+| `--skip-build`  | re-publish the existing `dist/` — build elsewhere, copy it over, deploy    |
+| `--no-service`  | write the config and reload, but leave systemd/launchd alone              |
 
-Three things about this are deliberate:
+Run it as root, or as a user with `sudo`: only the config file, the webroot and the service need
+privileges. Node is only needed for the build — a server without npm can take a `dist/` built
+elsewhere and deploy it with `--skip-build`.
 
-- **The build is copied out of the repo, not served from it.** This checkout can live on an external
-  volume; an nginx that starts at login and points at an unmounted volume serves 404s with no
-  obvious cause. Pass `--in-place` if you would rather it track `dist/` directly.
+**The port has to be open at the provider too.** On a cloud VM, a GCP VPC rule or AWS security group
+governs 9090 independently of the host firewall; the script warns when `ufw` is active without a rule
+but never edits a firewall itself.
+
+Two things about this are deliberate:
+
+- **The build is copied out of the repo, not served from it.** A checkout can sit on a volume that is
+  not mounted when nginx starts, which serves 404s with no obvious cause. Pass `--in-place` if you
+  would rather it track `dist/` directly.
 - **No SPA fallback.** Neither page uses a client-side router, so `try_files` ends in `=404`. A
   blanket rewrite to `/index.html` would answer a bad `/simulator/*` URL with the *marketing* page —
   a silent wrong-page bug in place of an honest 404.
-- **nginx runs as your user LaunchAgent, not a root daemon.** It therefore starts at login rather
-  than at boot, which is the right trade for a machine that already runs a user-level nginx. Only
-  the config file itself needs `sudo`, and only because Homebrew's `servers/` directory is
-  root-owned; where that is not writable the script falls back to a user-owned include directory.
 
 Hashed assets under `/assets` are pinned with `immutable`, both HTML entry points are `no-cache`, so
-a deploy is visible on the next reload. Logs land in `$(brew --prefix)/var/log/nginx/ail-website.*`.
+a deploy is visible on the next reload. Logs land in `/var/log/nginx/ail-website.*`.
 
 ### Sharing a machine with other nginx sites
 
 The script assumes it is *not* the only thing on this nginx, and is built to leave everything else
 alone:
 
-- **It claims port 9090 and nothing else.** Before writing anything it greps every loaded config for
-  that port and checks who is listening; if another vhost or process already has it, the deploy
-  stops and names the file, rather than adding a second `server` block nginx would quietly ignore.
-- **It reloads, never restarts.** `nginx -s reload` is graceful — existing workers finish their
-  requests. If the reload is refused the script tells you and stops; it will not restart a master
-  that is serving other people's sites.
+- **It claims one port and checks first.** It scans every config nginx actually loads — `nginx -T`,
+  so includes from anywhere are covered — plus everything staged under the config directory, and
+  checks who is listening. If another vhost or process already holds the port, the deploy stops and
+  names the file rather than adding a second `server` block nginx would quietly ignore. Its own
+  generated files are recognised by a marker in their contents, not by path, so a `sites-enabled`
+  symlink cannot make a re-run look like a conflict.
+- **It reloads, never restarts.** A reload is graceful — existing workers finish their requests. If
+  the reload is refused the script says so and stops; it will not restart a master that is serving
+  other people's sites.
 - **Every directive lives inside its own `server` block.** No `gzip`, cache or log setting leaks into
   the shared `http` context.
-- **One config file, its own webroot, its own logs.** Deploys overwrite only
-  `ail-website.conf` and `…/var/www/ail-website`. Publishing is `rsync --delete`, so the script
-  refuses to run it against a directory it did not publish before — a mistyped `--webroot` cannot
-  empty another app's docroot.
-- **The one shared file it may touch is `nginx.conf`,** and only when Homebrew's root-owned
-  `servers/` directory is unreachable without a password: it appends a single
-  `include ail-website.d/*.conf;` line after the existing `include servers/*;`, keeping a backup at
-  `nginx.conf.bak-ail`. Run the script where `sudo` can prompt and even that does not happen — the
-  config goes into `servers/` like every other site's.
+- **One config file, its own webroot, its own logs.** Deploys overwrite only `ail-website.conf` and
+  `/var/www/ail-website`. Publishing deletes what it does not recognise, so the script refuses to run
+  against a directory it did not publish before — a mistyped `--webroot` cannot empty another app's
+  docroot.
+- **A rejected config is rolled back.** If `nginx -t` fails, the config that was serving is put back
+  before anything is reloaded.
+
+On a macOS dev box there is one extra wrinkle: Homebrew's `servers/` directory is root-owned, so
+installing the vhost there needs a password. Where `sudo` cannot prompt, the script falls back to a
+user-owned include directory and appends a single `include ail-website.d/*.conf;` line to
+`nginx.conf`, keeping a backup at `nginx.conf.bak-ail`. On Linux the vhost always goes to
+`sites-available` with a symlink in `sites-enabled`, and no shared file is touched.
 
 The summary the script prints ends with an `untouched` line naming the other vhosts it found, so the
 blast radius is visible on every run.
+
+### On any other static host
+
+`npm run build` emits `dist/` with `index.html` at the root and `simulator/index.html` nested, which
+any static host will serve. Two things the config here handles that you would have to arrange
+yourself:
+
+- Serve `/simulator/` **with** the trailing slash, or configure the redirect; without it most static
+  hosts fall through to the marketing page.
+- Set `VITE_SITE_URL` at build time (`--site-url`) so the social card URLs are absolute.
 
 ---
 
@@ -272,14 +295,3 @@ Worth checking after a site change, because each has caught a real regression he
 3. **`/simulator/` still renders** — a canvas element with non-zero dimensions, and no console errors.
    Site-only changes have broken it before via shared files (`index.html`, fonts, Tailwind scoping).
 4. **`prefers-reduced-motion`** reveals all content outright and stops the spark animation.
-
----
-
-## Deploying
-
-`npm run build` emits `dist/` with `index.html` at the root and `simulator/index.html` nested. Any
-static host works. Two notes:
-
-- Serve `/simulator/` **with** the trailing slash, or configure a redirect; without it most static
-  hosts fall through to the marketing page.
-- Set `VITE_SITE_URL` at build time so the social card URLs are absolute.
