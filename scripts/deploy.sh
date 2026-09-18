@@ -6,6 +6,11 @@
 #   scripts/deploy.sh                 # build → publish → configure → reload → verify
 #   scripts/deploy.sh --skip-build    # re-publish the existing dist/
 #   scripts/deploy.sh --port 9091     # same, on another port
+#   scripts/deploy.sh --no-contact    # site only, leave the mail relay alone
+#
+# It also installs the contact-form mail relay (server/contact.mjs) as a systemd
+# service behind nginx's /api/, so the form on the landing page sends a real
+# email. That part is Linux only; on the dev Mac, run it by hand — see the README.
 #
 # Targets Ubuntu/Debian (apt, /etc/nginx/sites-available, systemd) and macOS
 # (Homebrew, servers/, launchd). Everything is idempotent, and nginx is only
@@ -16,15 +21,21 @@ set -euo pipefail
 # ---------------------------------------------------------------- settings --
 
 PORT=9090
+BACKEND_PORT=8787   # loopback port the contact-form mail relay listens on
 WEBROOT=""          # defaults per platform, see below
 SITE_URL=""         # VITE_SITE_URL for the build; empty keeps .env's value
 IN_PLACE=0          # serve dist/ where it lies instead of copying it out
 SKIP_BUILD=0
 NO_SERVICE=0        # configure nginx but leave systemd/launchd alone
+NO_CONTACT=0        # deploy the site without touching the mail relay
 
 REPO_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 TEMPLATE="$REPO_ROOT/deploy/nginx/ail-website.conf"
 CONF_NAME="ail-website.conf"
+
+CONTACT_SRC="$REPO_ROOT/server"
+CONTACT_UNIT_TEMPLATE="$REPO_ROOT/deploy/systemd/ail-contact.service"
+CONTACT_UNIT_NAME="ail-contact.service"
 
 # Stamped into every rendered config, so the script can recognise its own work
 # wherever it ends up — including through a sites-enabled symlink.
@@ -44,32 +55,41 @@ usage() {
 
 Options
   --port N          port to listen on (default 9090)
+  --backend-port N  loopback port for the contact mail relay (default 8787)
   --webroot PATH    where the build is published (default /var/www/ail-website)
   --site-url URL    VITE_SITE_URL baked into the build's social tags
   --in-place        serve dist/ directly instead of copying it out
   --skip-build      reuse the existing dist/ (build it on another machine and copy it over)
   --no-service      write the config and reload, but do not enable the service
+  --no-contact      deploy the site only; leave the contact mail relay untouched
   -h, --help        this text
 USAGE
 }
 
 while [ $# -gt 0 ]; do
     case "$1" in
-        --port)       PORT="${2:?--port needs a value}"; shift 2 ;;
-        --webroot)    WEBROOT="${2:?--webroot needs a value}"; shift 2 ;;
-        --site-url)   SITE_URL="${2:?--site-url needs a value}"; shift 2 ;;
-        --in-place)   IN_PLACE=1; shift ;;
-        --skip-build) SKIP_BUILD=1; shift ;;
-        --no-service) NO_SERVICE=1; shift ;;
-        -h|--help)    usage; exit 0 ;;
-        *)            die "unknown argument: $1 (try --help)" ;;
+        --port)         PORT="${2:?--port needs a value}"; shift 2 ;;
+        --backend-port) BACKEND_PORT="${2:?--backend-port needs a value}"; shift 2 ;;
+        --webroot)      WEBROOT="${2:?--webroot needs a value}"; shift 2 ;;
+        --site-url)     SITE_URL="${2:?--site-url needs a value}"; shift 2 ;;
+        --in-place)     IN_PLACE=1; shift ;;
+        --skip-build)   SKIP_BUILD=1; shift ;;
+        --no-service)   NO_SERVICE=1; shift ;;
+        --no-contact)   NO_CONTACT=1; shift ;;
+        -h|--help)      usage; exit 0 ;;
+        *)              die "unknown argument: $1 (try --help)" ;;
     esac
 done
 
-case "$PORT" in
-    ''|*[!0-9]*) die "--port must be a number, got: $PORT" ;;
-esac
-[ "$PORT" -ge 1 ] && [ "$PORT" -le 65535 ] || die "--port out of range: $PORT"
+check_port() {
+    case "$2" in
+        ''|*[!0-9]*) die "$1 must be a number, got: $2" ;;
+    esac
+    [ "$2" -ge 1 ] && [ "$2" -le 65535 ] || die "$1 out of range: $2"
+}
+check_port --port "$PORT"
+check_port --backend-port "$BACKEND_PORT"
+[ "$PORT" != "$BACKEND_PORT" ] || die "--port and --backend-port cannot both be $PORT"
 
 # ---------------------------------------------------------------- platform --
 # Everything that differs between the deploy target and the dev machine lives
@@ -197,6 +217,90 @@ Linux)
             fi
         fi
     }
+
+    CONTACT_APP_DIR="/opt/ail-contact"
+    CONTACT_ENV_PATH="/etc/ail-website/contact.env"
+
+    # The relay is a long-running process, so it wants a service manager. This is
+    # the half of the deploy that has no macOS twin: the dev Mac runs it in a
+    # terminal instead, which is all a dev box needs.
+    install_contact_service() {
+        [ "$HAVE_SYSTEMD" -eq 1 ] \
+            || { warn "no systemd here — start the relay yourself: node $CONTACT_APP_DIR/contact.mjs"; return 1; }
+
+        local node_bin
+        node_bin="$(command -v node || true)"
+        [ -n "$node_bin" ] \
+            || { warn "node is not on PATH — the mail relay needs it; install Node and re-run"; return 1; }
+        command -v npm >/dev/null 2>&1 \
+            || { warn "npm is not on PATH — cannot install the relay's one dependency"; return 1; }
+
+        # Unlike the site build, the relay runs on anything modern: nodemailer
+        # declares node >=6. So the "too old for Vite" server can still host it.
+        say "Installing the contact mail relay"
+
+        # Every failure below warns and returns rather than dying: a site that
+        # serves with a dead form beats no site at all. errexit is suppressed in
+        # here anyway (the caller tests the return value), so nothing may be left
+        # unchecked — an unguarded failure would silently fall through.
+        run_root mkdir -p "$CONTACT_APP_DIR" \
+            || { warn "cannot create $CONTACT_APP_DIR — re-run with sudo"; return 1; }
+        for f in contact.mjs package.json package-lock.json; do
+            run_root install -m 0644 "$CONTACT_SRC/$f" "$CONTACT_APP_DIR/$f" \
+                || { warn "cannot install $f into $CONTACT_APP_DIR"; return 1; }
+        done
+
+        # Its own package.json, so this pulls in nodemailer alone — never vite,
+        # three.js or anything else the site needs only at build time.
+        if ! run_root npm ci --omit=dev --prefix "$CONTACT_APP_DIR" --silent >/dev/null 2>&1; then
+            run_root npm install --omit=dev --prefix "$CONTACT_APP_DIR" --silent >/dev/null 2>&1 \
+                || { warn "could not install nodemailer into $CONTACT_APP_DIR"; return 1; }
+        fi
+        ok "nodemailer installed under $CONTACT_APP_DIR"
+
+        install_contact_env || return 1
+
+        local user group
+        if id -u www-data >/dev/null 2>&1; then user=www-data; group=www-data
+        else user=nobody; group=nogroup
+        fi
+
+        local rendered
+        rendered="$(mktemp "${TMPDIR:-/tmp}/ail-contact-unit.XXXXXX")"
+        {
+            echo "$GEN_MARKER from deploy/systemd/$CONTACT_UNIT_NAME."
+            echo "# Every deploy overwrites this file — edit the one in the repo instead."
+            sed \
+                -e "s|^.*# @@APPDIR@@$|WorkingDirectory=${CONTACT_APP_DIR}|" \
+                -e "s|^.*# @@EXECSTART@@$|ExecStart=${node_bin} ${CONTACT_APP_DIR}/contact.mjs|" \
+                -e "s|^.*# @@ENVPORT@@$|Environment=CONTACT_PORT=${BACKEND_PORT}|" \
+                -e "s|^.*# @@USER@@$|User=${user}|" \
+                -e "s|^.*# @@GROUP@@$|Group=${group}|" \
+                -e "s|^EnvironmentFile=.*|EnvironmentFile=${CONTACT_ENV_PATH}|" \
+                "$CONTACT_UNIT_TEMPLATE"
+        } > "$rendered"
+        # Same contract as the nginx template: a surviving token means the unit
+        # and this script have drifted, and shipping it would start the wrong thing.
+        if grep -q '@@' "$rendered"; then
+            rm -f "$rendered"
+            die "a @@TOKEN@@ survived rendering the unit — template and script have drifted"
+        fi
+
+        run_root install -m 0644 "$rendered" "/etc/systemd/system/$CONTACT_UNIT_NAME" \
+            || { rm -f "$rendered"; warn "cannot write the unit file — re-run with sudo"; return 1; }
+        rm -f "$rendered"
+
+        run_root systemctl daemon-reload || { warn "systemctl daemon-reload failed"; return 1; }
+        run_root systemctl enable "$CONTACT_UNIT_NAME" >/dev/null 2>&1 \
+            || warn "could not enable ail-contact at boot — systemctl enable $CONTACT_UNIT_NAME"
+        # restart, not reload: the code, the config and the port may all have moved.
+        if run_root systemctl restart "$CONTACT_UNIT_NAME"; then
+            ok "ail-contact.service running as $user — it starts again at boot"
+        else
+            warn "ail-contact.service failed to start — journalctl -u ail-contact -n 30"
+            return 1
+        fi
+    }
     ;;
 Darwin)
     command -v brew >/dev/null 2>&1 || die "Homebrew is not installed — see https://brew.sh"
@@ -268,11 +372,48 @@ Darwin)
     }
 
     firewall_note() { :; }
+
+    CONTACT_APP_DIR="$REPO_ROOT/server"
+    CONTACT_ENV_PATH="$REPO_ROOT/server/contact.env"
+
+    # No launchd twin on purpose: a dev box does not need the relay surviving a
+    # reboot, and a background daemon holding SMTP credentials is not something to
+    # install on someone's laptop as a side effect of a deploy.
+    install_contact_service() {
+        warn "the mail relay is not installed as a service on macOS — run it in a terminal:"
+        warn "    (cd server && npm install && node --env-file=contact.env contact.mjs)"
+        return 1
+    }
     ;;
 *)
     die "unsupported platform: $OS (this script handles Linux and macOS)"
     ;;
 esac
+
+# The SMTP password lives in one 0600 root-owned file that systemd reads before
+# dropping privileges, so the service account never gets to see it on disk.
+# server/contact.env is git-ignored; the installed copy is what the unit reads.
+#
+# Linux only — the macOS install_contact_service returns before reaching this, and
+# would have nothing to do anyway: there CONTACT_ENV_PATH *is* the repo's own file.
+install_contact_env() {
+    if [ -f "$CONTACT_SRC/contact.env" ]; then
+        run_root mkdir -p "$(dirname "$CONTACT_ENV_PATH")" 2>/dev/null \
+            || mkdir -p "$(dirname "$CONTACT_ENV_PATH")" 2>/dev/null || true
+        run_root install -m 0600 -o root -g root "$CONTACT_SRC/contact.env" "$CONTACT_ENV_PATH" 2>/dev/null \
+            || run_root install -m 0600 "$CONTACT_SRC/contact.env" "$CONTACT_ENV_PATH" \
+            || { warn "cannot write $CONTACT_ENV_PATH — re-run with sudo"; return 1; }
+        ok "credentials installed at $CONTACT_ENV_PATH (0600)"
+    elif run_root test -f "$CONTACT_ENV_PATH" 2>/dev/null || [ -f "$CONTACT_ENV_PATH" ]; then
+        # Deploying from a checkout that does not carry the secret — which is the
+        # normal case, since it is git-ignored. Leave what is already there.
+        ok "keeping the credentials already at $CONTACT_ENV_PATH"
+    else
+        warn "no credentials: copy server/contact.env.example to server/contact.env,"
+        warn "fill in SMTP_PASSWORD and re-run — the form cannot send mail until then"
+        return 1
+    fi
+}
 
 # ------------------------------------------------------------- 1. toolchain --
 
@@ -438,6 +579,7 @@ trap 'rm -f "$RENDERED" "$BACKUP"' EXIT
         -e "s|^.*# @@PORT@@$|    listen      ${PORT};|" \
         -e "s|^.*# @@PORT6@@$|    listen      [::]:${PORT};|" \
         -e "s|^.*# @@ROOT@@$|    root        ${WEBROOT};|" \
+        -e "s|^.*# @@BACKEND@@$|        proxy_pass         http://127.0.0.1:${BACKEND_PORT};|" \
         -e "s|^.*# @@ACCESS_LOG@@$|    access_log  ${LOG_DIR}/ail-website.access.log;|" \
         -e "s|^.*# @@ERROR_LOG@@$|    error_log   ${LOG_DIR}/ail-website.error.log;|" \
         "$TEMPLATE"
@@ -523,7 +665,46 @@ else
     confirm_autostart
 fi
 
-# ---------------------------------------------------------------- 6. verify --
+# --------------------------------------------------------------- 6. contact --
+# The mail relay behind /api/contact. It is deliberately not fatal: a site that
+# serves with a dead contact form is far better than no site at all, so every
+# failure here warns and the deploy carries on.
+
+CONTACT_OK=0
+if [ "$NO_CONTACT" -eq 1 ]; then
+    warn "--no-contact: the mail relay was left alone (the form will 502 if it is not already running)"
+elif [ ! -f "$CONTACT_SRC/contact.mjs" ] || [ ! -f "$CONTACT_UNIT_TEMPLATE" ]; then
+    warn "the mail relay's files are missing from this checkout — skipping it"
+else
+    # Somebody else on the backend port means our service cannot bind and nginx
+    # would proxy submissions into whatever is there instead.
+    BACKEND_HOLDER=""
+    if command -v ss >/dev/null 2>&1; then
+        BACKEND_HOLDER="$( { ss -H -ltnp "sport = :$BACKEND_PORT" 2>/dev/null || true; } \
+            | sed -n 's/.*users:((\"\([^"]*\)\".*/\1/p' | sort -u | tr '\n' ' ')"
+    elif command -v lsof >/dev/null 2>&1; then
+        BACKEND_HOLDER="$( { lsof -nP -iTCP:"$BACKEND_PORT" -sTCP:LISTEN 2>/dev/null || true; } \
+            | awk 'NR>1 {print $1}' | sort -u | tr '\n' ' ')"
+    fi
+    case "${BACKEND_HOLDER// /}" in
+        ''|node) ;;
+        *) die "backend port $BACKEND_PORT is held by: ${BACKEND_HOLDER}— stop it or pass --backend-port" ;;
+    esac
+
+    if install_contact_service; then CONTACT_OK=1; else warn "the contact form will not send mail yet"; fi
+fi
+
+# Read the destination back from whichever env file is in play, so the summary
+# reports where mail actually goes rather than what the default happens to be.
+CONTACT_SUMMARY='(not running)'
+if [ "$CONTACT_OK" -eq 1 ]; then
+    # -m1 is per file, so two files can yield two lines — take the first.
+    CONTACT_TO_SHOWN="$( { grep -h '^CONTACT_TO=' "$CONTACT_SRC/contact.env" "$CONTACT_ENV_PATH" 2>/dev/null || true; } \
+        | head -1 | cut -d= -f2- | tr -d '"'"'" )"
+    CONTACT_SUMMARY="→ ${CONTACT_TO_SHOWN:-info@aetheriuslabs.com}"
+fi
+
+# ---------------------------------------------------------------- 7. verify --
 
 say "Verifying http://localhost:$PORT"
 
@@ -547,6 +728,16 @@ check /simulator/                      200
 check /og.png                          200
 check /this-path-does-not-exist        404
 
+# End to end through nginx, so it proves the proxy and the service agree on the
+# port — not just that something is listening somewhere.
+if [ "$CONTACT_OK" -eq 1 ]; then
+    for _ in $(seq 1 25); do
+        [ "$(code /api/contact/health)" = "200" ] && break
+        sleep 0.2
+    done
+    check /api/contact/health          200
+fi
+
 [ "$FAILED" -eq 0 ] || die "nginx is configured but is not serving as expected — see $LOG_DIR/ail-website.error.log"
 
 firewall_note
@@ -560,11 +751,13 @@ cat <<SUMMARY
 
   site        http://localhost:$PORT/
   simulator   http://localhost:$PORT/simulator/
+  contact     http://localhost:$PORT/api/contact $CONTACT_SUMMARY
 
   webroot     $WEBROOT
   config      $CONF_PATH
   untouched   ${OTHER_LISTENS:-none} (other vhosts on this nginx)
   logs        $LOG_DIR/ail-website.{access,error}.log
+  mail log    journalctl -u ail-contact -f
 
   Re-run this script after any change to publish it.
 SUMMARY

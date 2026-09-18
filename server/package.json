@@ -1,0 +1,13 @@
+{
+  "name": "ail-contact",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Mail relay behind the site's contact form. Deliberately separate from the site's package.json so the deploy target can install it without the build toolchain.",
+  "scripts": {
+    "start": "node contact.mjs"
+  },
+  "dependencies": {
+    "nodemailer": "^7.0.9"
+  }
+}

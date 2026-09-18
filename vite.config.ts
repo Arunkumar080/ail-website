@@ -6,6 +6,15 @@ import tailwindcss from '@tailwindcss/vite';
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react(), tailwindcss()],
+  server: {
+    // In production nginx proxies /api/ to the contact-form mail relay. Mirror
+    // that here so the form behaves the same under `npm run dev` — start the
+    // relay alongside it with:
+    //   cd server && node --env-file=contact.env contact.mjs
+    proxy: {
+      '/api': { target: 'http://127.0.0.1:8787', changeOrigin: false },
+    },
+  },
   build: {
     rollupOptions: {
       // Two pages: the public marketing shell at `/` and the perimeter-node
