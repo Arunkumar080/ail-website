@@ -21,7 +21,7 @@ export function Economics() {
       <Glow x="24%" y="0%" w="1100px" h="440px" alpha={0.12} />
       <Container>
         <Item>
-          <Eyebrow index="03 / 05" label="economics" />
+          <Eyebrow index="03 / 05" label="the model" />
         </Item>
 
         <Item>
