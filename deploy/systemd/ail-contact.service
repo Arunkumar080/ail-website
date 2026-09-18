@@ -1,0 +1,71 @@
+# Aetherius Intelligence Labs — contact-form mail relay.
+#
+# scripts/deploy.sh renders this file into /etc/systemd/system/, rewriting each
+# line that carries a trailing marker comment. Edit this file, never the
+# installed copy — every deploy overwrites that one.
+#
+#   systemctl status ail-contact
+#   journalctl -u ail-contact -f
+
+[Unit]
+Description=Aetherius contact form mail relay
+Documentation=https://github.com/Arunkumar080/ail-website
+After=network-online.target
+Wants=network-online.target
+
+# Keep restarting a genuinely broken service, but stop hammering SMTP. These are
+# [Unit] options since systemd 229 — in [Service] they are silently ignored.
+StartLimitIntervalSec=300
+StartLimitBurst=10
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/ail-contact                                    # @@APPDIR@@
+ExecStart=/usr/bin/node /opt/ail-contact/contact.mjs                 # @@EXECSTART@@
+
+# The one setting nginx has to agree with, so scripts/deploy.sh owns it rather
+# than the env file. It has to sit inside [Service] — systemd ignores an
+# Environment= line in [Install] and only says so in the journal.
+Environment=CONTACT_PORT=8787                                        # @@ENVPORT@@
+
+# systemd reads this as root before dropping to User=, so the file stays 0600
+# root-owned and the service account never needs to see the SMTP password on disk.
+EnvironmentFile=/etc/ail-website/contact.env
+
+User=www-data                                                        # @@USER@@
+Group=www-data                                                       # @@GROUP@@
+
+Restart=always
+RestartSec=3
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=ail-contact
+
+# It answers loopback and speaks SMTP outbound. It has no business doing anything
+# else, so take the rest away.
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+RestrictNamespaces=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+LockPersonality=true
+# AF_NETLINK is not optional: glibc's getaddrinfo uses it to enumerate local
+# addresses, and without it resolving the SMTP host can fail.
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX AF_NETLINK
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+CapabilityBoundingSet=
+# Not MemoryDenyWriteExecute: V8 maps its JIT pages executable, so that one stops
+# node from starting at all rather than hardening it.
+
+[Install]
+WantedBy=multi-user.target

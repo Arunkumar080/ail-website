@@ -59,16 +59,19 @@ like.
 | publish   | `rsync --delete` of `dist/` into `/var/www/ail-website`                                          |
 | configure | renders `deploy/nginx/ail-website.conf` into the nginx config dir, `nginx -t`, then reloads      |
 | service   | `systemctl enable --now nginx`, so it starts at boot                                             |
-| verify    | asserts `/` and `/simulator/` answer 200 and an unknown path answers 404                         |
+| contact   | installs the mail relay as `ail-contact.service` behind `/api/` (Linux only — see below)          |
+| verify    | asserts `/`, `/simulator/` and `/api/contact/health` answer 200 and an unknown path answers 404   |
 
-| Flag            | Use                                                                    |
-| --------------- | ------------------------------------------------------------------------ |
-| `--port N`      | listen somewhere other than 9090                                          |
-| `--webroot P`   | publish somewhere other than `/var/www/ail-website`                       |
-| `--site-url U`  | bake `VITE_SITE_URL` into the build's social tags                         |
-| `--in-place`    | serve `dist/` where it lies instead of copying it out                     |
-| `--skip-build`  | re-publish the existing `dist/` — build elsewhere, copy it over, deploy    |
-| `--no-service`  | write the config and reload, but leave systemd/launchd alone              |
+| Flag              | Use                                                                  |
+| ----------------- | ------------------------------------------------------------------------ |
+| `--port N`        | listen somewhere other than 9090                                          |
+| `--backend-port N`| loopback port for the mail relay (default 8787)                           |
+| `--webroot P`     | publish somewhere other than `/var/www/ail-website`                       |
+| `--site-url U`    | bake `VITE_SITE_URL` into the build's social tags                         |
+| `--in-place`      | serve `dist/` where it lies instead of copying it out                     |
+| `--skip-build`    | re-publish the existing `dist/` — build elsewhere, copy it over, deploy    |
+| `--no-service`    | write the config and reload, but leave systemd/launchd alone              |
+| `--no-contact`    | deploy the site only; leave the mail relay untouched                      |
 
 Run it as root, or as a user with `sudo`: only the config file, the webroot and the service need
 privileges.
@@ -93,6 +96,72 @@ Two things about this are deliberate:
 
 Hashed assets under `/assets` are pinned with `immutable`, both HTML entry points are `no-cache`, so
 a deploy is visible on the next reload. Logs land in `/var/log/nginx/ail-website.*`.
+
+### The contact form
+
+The form in the `// deploy` section posts to `/api/contact`, which nginx proxies to a small Node
+service (`server/contact.mjs`) running on loopback. That service turns the submission into one email
+and forgets it: **no database, no queue, nothing written to disk.**
+
+```
+browser → nginx :9090 /api/ → ail-contact :8787 → smtp.gmail.com:587 → info@aetheriuslabs.com
+```
+
+The relay authenticates as `info@orieninfotech.com` and that address stays in `From:`, because it is
+the domain SPF and DKIM are aligned with — putting the visitor's address there instead gets the mail
+junked or rejected. The visitor goes in `Reply-To:`, so hitting reply in the inbox answers them
+directly.
+
+**Credentials.** They live in one file that is never committed:
+
+```bash
+cp server/contact.env.example server/contact.env
+$EDITOR server/contact.env          # fill in SMTP_PASSWORD
+./scripts/deploy.sh                 # installs it at /etc/ail-website/contact.env, 0600 root-owned
+```
+
+`server/contact.env` is covered by `.gitignore`. systemd reads the installed copy as root before
+dropping to `www-data`, so the service account never sees the password on disk. Gmail and Google
+Workspace need an **App Password** here, not the account password.
+
+Deploying from a checkout without `server/contact.env` — the normal case, since it is git-ignored —
+leaves the credentials already on the server in place.
+
+**Spam and quota.** An off-screen honeypot field, a minimum fill time of 2.5s, five submissions per
+IP per ten minutes, and 120 actual sends per day across everyone — all held in memory, no store. A
+submission that trips a trap gets the same `200` a real one does: telling a bot it failed only
+teaches it to try a different shape. No CAPTCHA.
+
+The per-IP bucket keys on `X-Real-IP`, **not** `X-Forwarded-For`. nginx builds the latter with
+`$proxy_add_x_forwarded_for`, which appends the peer address to whatever the client sent, so its
+first element is attacker-controlled — a script rotating that header would walk straight past the
+limit. The daily ceiling exists because the per-IP cap alone still permits 720 sends a day from one
+address, and a consumer Gmail account is cut off at 500: hitting that would take the whole mailbox
+down, not just the form.
+
+**Operating it.**
+
+```bash
+systemctl status ail-contact
+journalctl -u ail-contact -f            # one line per send, with the message id
+curl localhost:9090/api/contact/health  # {"ok":true}
+```
+
+A bad password shows up at startup (`smtp NOT ready: …`) rather than on the first real enquiry. The
+relay keeps serving either way, so a broken mailbox never takes the endpoint down with it.
+
+Because nothing stores a submission, one that fails to send is gone. The relay prints the payload to
+the journal on failure so it can be recovered by hand (`journalctl -u ail-contact | grep 'LOST
+SUBMISSION'`); that puts the sender's details in the system log, so set `CONTACT_LOG_FAILURES=false`
+if you would rather accept the loss.
+
+**On the dev Mac** the deploy script does not install a service — a background daemon holding SMTP
+credentials is not something to leave on a laptop. Run it in a terminal beside `npm run dev`, which
+proxies `/api` to it:
+
+```bash
+cd server && npm install && node --env-file=contact.env contact.mjs
+```
 
 ### Sharing a machine with other nginx sites
 
