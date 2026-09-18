@@ -40,6 +40,77 @@ checks; see [Verifying a change](#verifying-a-change).
 
 ---
 
+## Serving the build locally
+
+```bash
+./scripts/deploy.sh          # build → publish → configure nginx → reload → verify
+```
+
+One idempotent script takes the repo from source to a running host on **port 9090**, and leaves
+nginx registered with launchd so it comes back by itself. Re-run it after any change; it is safe to
+run as often as you like.
+
+| Step      | What happens                                                                              |
+| --------- | ----------------------------------------------------------------------------------------- |
+| toolchain | `brew install nginx` if it is missing                                                       |
+| build     | `npm ci` when the lockfile has moved, then `npm run build`                                  |
+| publish   | `rsync --delete` of `dist/` into `$(brew --prefix)/var/www/ail-website`                     |
+| configure | renders `deploy/nginx/ail-website.conf` into the nginx config dir, `nginx -t`, then reloads |
+| verify    | asserts `/` and `/simulator/` answer 200 and an unknown path answers 404                    |
+
+| Flag            | Use                                                        |
+| --------------- | ----------------------------------------------------------- |
+| `--port N`      | listen somewhere other than 9090                             |
+| `--webroot P`   | publish somewhere other than the Homebrew prefix             |
+| `--site-url U`  | bake `VITE_SITE_URL` into the build's social tags            |
+| `--in-place`    | serve `dist/` where it lies instead of copying it out        |
+| `--skip-build`  | re-publish the existing `dist/`                              |
+| `--no-service`  | write the config and reload, but leave launchd alone         |
+
+Three things about this are deliberate:
+
+- **The build is copied out of the repo, not served from it.** This checkout can live on an external
+  volume; an nginx that starts at login and points at an unmounted volume serves 404s with no
+  obvious cause. Pass `--in-place` if you would rather it track `dist/` directly.
+- **No SPA fallback.** Neither page uses a client-side router, so `try_files` ends in `=404`. A
+  blanket rewrite to `/index.html` would answer a bad `/simulator/*` URL with the *marketing* page —
+  a silent wrong-page bug in place of an honest 404.
+- **nginx runs as your user LaunchAgent, not a root daemon.** It therefore starts at login rather
+  than at boot, which is the right trade for a machine that already runs a user-level nginx. Only
+  the config file itself needs `sudo`, and only because Homebrew's `servers/` directory is
+  root-owned; where that is not writable the script falls back to a user-owned include directory.
+
+Hashed assets under `/assets` are pinned with `immutable`, both HTML entry points are `no-cache`, so
+a deploy is visible on the next reload. Logs land in `$(brew --prefix)/var/log/nginx/ail-website.*`.
+
+### Sharing a machine with other nginx sites
+
+The script assumes it is *not* the only thing on this nginx, and is built to leave everything else
+alone:
+
+- **It claims port 9090 and nothing else.** Before writing anything it greps every loaded config for
+  that port and checks who is listening; if another vhost or process already has it, the deploy
+  stops and names the file, rather than adding a second `server` block nginx would quietly ignore.
+- **It reloads, never restarts.** `nginx -s reload` is graceful — existing workers finish their
+  requests. If the reload is refused the script tells you and stops; it will not restart a master
+  that is serving other people's sites.
+- **Every directive lives inside its own `server` block.** No `gzip`, cache or log setting leaks into
+  the shared `http` context.
+- **One config file, its own webroot, its own logs.** Deploys overwrite only
+  `ail-website.conf` and `…/var/www/ail-website`. Publishing is `rsync --delete`, so the script
+  refuses to run it against a directory it did not publish before — a mistyped `--webroot` cannot
+  empty another app's docroot.
+- **The one shared file it may touch is `nginx.conf`,** and only when Homebrew's root-owned
+  `servers/` directory is unreachable without a password: it appends a single
+  `include ail-website.d/*.conf;` line after the existing `include servers/*;`, keeping a backup at
+  `nginx.conf.bak-ail`. Run the script where `sudo` can prompt and even that does not happen — the
+  config goes into `servers/` like every other site's.
+
+The summary the script prints ends with an `untouched` line naming the other vhosts it found, so the
+blast radius is visible on every run.
+
+---
+
 ## Environment
 
 Copy `.env.example` to `.env`. Both variables are optional — the app runs with neither.
