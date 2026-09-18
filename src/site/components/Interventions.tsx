@@ -106,7 +106,7 @@ const CARDS: { index: string; title: string; body: string; graphic: ReactNode }[
 
 export function Interventions() {
   return (
-    <Section id="interventions" index="01 / 05" eyebrow="interventions" title="our tactical interventions.">
+    <Section id="interventions" index="01 / 05" eyebrow="interventions" title="the problems we take on.">
       <div className="mt-10 grid grid-cols-1 gap-5 md:grid-cols-3">
         {CARDS.map((c) => (
           <Item key={c.index} className="flex">

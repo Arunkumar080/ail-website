@@ -3,7 +3,7 @@ import { Container } from './Container.tsx';
 import { Logo, Wordmark } from './Logo.tsx';
 
 const HEAD = 'mb-[18px] font-mono text-[10.5px] uppercase tracking-[0.2em] text-muted';
-const LINK = 'text-quiet transition-colors duration-300 hover:text-cyan-lift';
+const LINK = 'normal-case text-quiet transition-colors duration-300 hover:text-cyan-lift';
 
 export function Footer() {
   return (
@@ -15,7 +15,8 @@ export function Footer() {
             <Wordmark />
           </div>
           <p className="mt-[18px] max-w-[30ch] text-[14.5px] leading-[1.6] text-muted">
-            an embedded engineering task force paid only on the infrastructure savings it can measure.
+            your private, embedded research team — a fleet of ai agents and deep-tech experts, paid only once the
+            problem is solved.
           </p>
         </div>
 
@@ -53,18 +54,18 @@ export function Footer() {
           <div className="mt-4">
             <a
               href="#contact"
-              className="inline-flex h-[38px] items-center rounded-full border border-cyan/55 px-5 font-mono text-[11.5px] tracking-[0.08em] text-cyan transition-colors duration-300 hover:bg-cyan/10"
+              className="inline-flex h-[38px] items-center rounded-full border border-cyan/55 px-5 font-mono text-[11.5px] normal-case tracking-[0.08em] text-cyan transition-colors duration-300 hover:bg-cyan/10"
             >
-              [book a technical call]
+              Book a Technical Call
             </a>
           </div>
           <div className="mt-[18px] flex items-center gap-3.5 text-[14.5px]">
             <a href="#linkedin" className={LINK}>
-              linkedin
+              LinkedIn
             </a>
             <span className="text-[#5c6469]">/</span>
             <a href="#github" className={LINK}>
-              github
+              GitHub
             </a>
           </div>
         </div>
@@ -74,11 +75,11 @@ export function Footer() {
         <Container className="flex flex-col items-start justify-between gap-4 font-mono text-[11.5px] tracking-[0.1em] text-[#8e979f] sm:flex-row sm:items-center">
           <p>aetherius intelligence labs ltd · © 2026</p>
           <div className="flex gap-6">
-            <a href="#privacy" className="transition-colors duration-300 hover:text-cyan-lift">
-              privacy
+            <a href="#privacy" className="normal-case transition-colors duration-300 hover:text-cyan-lift">
+              Privacy
             </a>
-            <a href="#security-trust" className="transition-colors duration-300 hover:text-cyan-lift">
-              security
+            <a href="#security-trust" className="normal-case transition-colors duration-300 hover:text-cyan-lift">
+              Security
             </a>
           </div>
         </Container>

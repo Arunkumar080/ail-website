@@ -28,7 +28,7 @@ function useActiveSection() {
 }
 
 const PILL =
-  'inline-flex shrink-0 items-center rounded-full border border-cyan/55 bg-cyan/[0.06] font-mono tracking-[0.08em] text-cyan transition-colors duration-300 hover:bg-cyan/[0.12]';
+  'inline-flex shrink-0 items-center rounded-full border border-cyan/55 bg-cyan/[0.06] font-mono normal-case tracking-[0.08em] text-cyan transition-colors duration-300 hover:bg-cyan/[0.12]';
 
 export function Nav() {
   const activeId = useActiveSection();
@@ -45,7 +45,7 @@ export function Nav() {
         </a>
 
         {/* desktop sections */}
-        <nav aria-label="sections" className="hidden items-center gap-[30px] text-sm lg:flex">
+        <nav aria-label="sections" className="hidden items-center gap-[30px] text-sm normal-case lg:flex">
           {LINKS.map((l) => {
             const active = activeId === l.href.slice(1);
             return (
@@ -67,7 +67,7 @@ export function Nav() {
 
         <div className="flex items-center gap-3">
           <a href={SIMULATOR_HREF} className={`${PILL} h-9 px-[18px] text-[11.5px]`}>
-            [launch simulator]
+            Launch Simulator
           </a>
           <button
             type="button"
@@ -86,7 +86,7 @@ export function Nav() {
       {/* mobile drawer — not in the 1440 artboard; stacking behaviour is ours */}
       {open && (
         <div className="border-t border-white/10 bg-shell/95 backdrop-blur-[14px] lg:hidden">
-          <Container className="flex flex-col gap-4 py-6 text-sm">
+          <Container className="flex flex-col gap-4 py-6 text-sm normal-case">
             {LINKS.map((l) => (
               <a
                 key={l.href}

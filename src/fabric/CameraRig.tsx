@@ -60,13 +60,34 @@ export function CameraRig() {
     let parallax: number;
 
     if (mode === 'gateway') {
+      // The header panel is sized by its telemetry column, so it stands far
+      // taller than a title bar and covers the top fifth of the viewport. Frame
+      // the monolith in the clear band between the header and the CTA rather
+      // than in the whole viewport: dolly back until a full viewport's worth of
+      // subject fits the band, then slide the framing down so the band's centre
+      // sits where the viewport's centre used to.
+      const vh = Math.max(1, state.size.height);
+      const top = Math.min(perimeter.chromeTopPx, vh * 0.45);
+      const bottom = perimeter.chromeBottomPx > top ? Math.min(perimeter.chromeBottomPx, vh) : vh;
+      const band = Math.max(1, bottom - top);
+      const fit = vh / band;
+
       r.dyn.look.copy(GATEWAY.look);
       r.dyn.pos.copy(GATEWAY.pos).multiplyScalar(portraitZoom);
+      r.dyn.pos.z *= fit;
+
       const hp = arsenalHover ? arsenalWorld.get(arsenalHover) : undefined;
       if (hp) {
         r.dyn.look.lerp(hp, 0.35);
         r.dyn.pos.addScaledVector(hp.clone().sub(r.dyn.pos).normalize(), 0.45);
       }
+
+      // Translate camera and target together: a pure vertical slide, so the
+      // subject drops down the screen with no change of viewing angle.
+      const drop = (((top + bottom) / 2 - vh / 2) / vh) * 2 * r.dyn.pos.z * HALF_TAN;
+      r.dyn.pos.y += drop;
+      r.dyn.look.y += drop;
+
       r.dyn.fov = FOV;
       r.dyn.roll = 0;
       pose = r.dyn;

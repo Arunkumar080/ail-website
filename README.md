@@ -173,6 +173,15 @@ Letters and digits are ignored while a text input has focus, so typing never swi
 
 **Audio** is Web Audio, off by default, and every oscillator is torn down on `pagehide`.
 
+**The camera frames to the DOM chrome, not the viewport.** The header panel is sized by its tallest
+child (the telemetry column, ~178px), so a scene centred in the viewport is partly hidden behind it.
+`PerimeterNode` publishes the header's bottom edge and the bottom bar's top edge to
+`perimeter.chromeTopPx` / `chromeBottomPx`, and `CameraRig` reads them per frame in gateway mode to
+dolly back and slide the framing down so the monolith sits centred in the clear band between them.
+Both values are written straight to the store rather than React state, because the rig reads them
+every frame and must not trigger a re-render. If you change the header's contents or height, the
+framing follows automatically — but if you add chrome elsewhere, publish its edge the same way.
+
 ---
 
 ## Verifying a change

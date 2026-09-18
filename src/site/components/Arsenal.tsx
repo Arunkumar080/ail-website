@@ -78,7 +78,7 @@ const TOOLS: Tool[] = [
   {
     id: 'aetherius-vivid',
     name: 'aetherius vivid',
-    body: 'autonomous shadow architect. the execution interface your engineers drive the task force from.',
+    body: 'autonomous shadow architect. the execution interface your engineers drive the agent fleet from.',
     metric: '100% autonomous execution',
     span: 'lg:col-start-4 lg:col-span-2',
     icon: (
@@ -108,8 +108,8 @@ export function Arsenal() {
               <p className="flex-1 text-[15px] leading-[1.6] text-muted">{t.body}</p>
               <div className="flex items-center justify-between gap-3 border-t border-white/[0.11] pt-3.5">
                 <span className="font-mono text-[11.5px] tracking-[0.06em] text-cyan">{t.metric}</span>
-                <a href="#arsenal" className="font-mono text-[11.5px] tracking-[0.08em] text-muted transition-colors duration-300 hover:text-cyan-lift">
-                  [details]
+                <a href="#arsenal" className="font-mono text-[11.5px] normal-case tracking-[0.08em] text-muted transition-colors duration-300 hover:text-cyan-lift">
+                  Details
                 </a>
               </div>
             </Card>
