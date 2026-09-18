@@ -71,8 +71,12 @@ like.
 | `--no-service`  | write the config and reload, but leave systemd/launchd alone              |
 
 Run it as root, or as a user with `sudo`: only the config file, the webroot and the service need
-privileges. Node is only needed for the build — a server without npm can take a `dist/` built
-elsewhere and deploy it with `--skip-build`.
+privileges.
+
+Node is only needed for the build, and it has to be a recent one — Vite 8 wants `^20.19 || >=22.12`,
+while `apt install nodejs` on Ubuntu 24.04 still gives 18.x. The script checks `node -v` before it
+touches anything and stops with that message rather than failing deep inside `vite build`. A server
+without a usable Node can take a `dist/` built elsewhere and deploy it with `--skip-build`.
 
 **The port has to be open at the provider too.** On a cloud VM, a GCP VPC rule or AWS security group
 governs 9090 independently of the host firewall; the script warns when `ufw` is active without a rule

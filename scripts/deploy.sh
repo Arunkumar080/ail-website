@@ -308,6 +308,25 @@ else
     command -v npm >/dev/null 2>&1 \
         || die "npm is not on PATH — install Node.js, or build elsewhere, copy dist/ here and re-run with --skip-build"
 
+    # Vite 8 needs ^20.19 || >=22.12, and apt's nodejs on Ubuntu 24.04 is 18.x.
+    # Catch that here: otherwise it dies deep inside `vite build` instead.
+    NODE_V="$(node -v 2>/dev/null | sed 's/^v//')"
+    NODE_MAJOR="${NODE_V%%.*}"
+    NODE_REST="${NODE_V#*.}"
+    NODE_MINOR="${NODE_REST%%.*}"
+    case "$NODE_MAJOR" in
+        ''|*[!0-9]*) warn "could not read a version from 'node -v' — building anyway" ;;
+        *)
+            if   [ "$NODE_MAJOR" -eq 20 ] && [ "$NODE_MINOR" -ge 19 ]; then :
+            elif [ "$NODE_MAJOR" -eq 22 ] && [ "$NODE_MINOR" -ge 12 ]; then :
+            elif [ "$NODE_MAJOR" -gt 22 ]; then :
+            else
+                die "node v$NODE_V is too old for Vite 8, which needs ^20.19 or >=22.12 (apt's nodejs on Ubuntu 24.04 is 18.x).
+  Install a newer Node, or build on another machine, copy dist/ here and re-run with --skip-build."
+            fi
+            ;;
+    esac
+
     say "Building the site"
     cd "$REPO_ROOT"
 
