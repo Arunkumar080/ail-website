@@ -30,14 +30,20 @@ function useActiveSection() {
 const PILL =
   'inline-flex shrink-0 items-center rounded-full border border-cyan/55 bg-cyan/[0.06] font-mono normal-case tracking-[0.08em] text-cyan transition-colors duration-300 hover:bg-cyan/[0.12]';
 
-export function Nav() {
+/**
+ * `base` prefixes the section anchors so the same header works off the front
+ * page: from `/privacy/` a bare `#economics` is a dead fragment, `/#economics`
+ * walks back to the section. The observer still keys on the bare id, so the
+ * marketing page passes nothing and behaves exactly as before.
+ */
+export function Nav({ base = '' }: { base?: string }) {
   const activeId = useActiveSection();
   const [open, setOpen] = useState(false);
 
   return (
     <header className="sticky top-0 z-50 border-b border-white/[0.13] bg-shell/[0.78] backdrop-blur-[14px]">
       <Container className="flex h-16 items-center justify-between gap-6 lg:gap-10">
-        <a href="#top" className="flex items-center gap-[11px] text-base">
+        <a href={`${base}#top`} className="flex items-center gap-[11px] text-base">
           <Logo className="h-[26px] w-[26px] shrink-0" />
           <span className="hidden sm:flex">
             <Wordmark />
@@ -51,7 +57,7 @@ export function Nav() {
             return (
               <a
                 key={l.href}
-                href={l.href}
+                href={`${base}${l.href}`}
                 aria-current={active ? 'true' : undefined}
                 className={`relative py-[22px] transition-colors duration-300 ${active ? 'text-cyan' : 'text-quiet hover:text-cyan-lift'}`}
               >
@@ -90,7 +96,7 @@ export function Nav() {
             {LINKS.map((l) => (
               <a
                 key={l.href}
-                href={l.href}
+                href={`${base}${l.href}`}
                 onClick={() => setOpen(false)}
                 className={activeId === l.href.slice(1) ? 'text-cyan' : 'text-quiet'}
               >

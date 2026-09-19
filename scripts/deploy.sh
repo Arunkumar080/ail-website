@@ -483,9 +483,10 @@ else
         npm run build
     fi
 
-    [ -f "$REPO_ROOT/dist/index.html" ] && [ -f "$REPO_ROOT/dist/simulator/index.html" ] \
+    [ -f "$REPO_ROOT/dist/index.html" ] && [ -f "$REPO_ROOT/dist/privacy/index.html" ] \
+        && [ -f "$REPO_ROOT/dist/simulator/index.html" ] \
         || die "build finished but dist/ is missing an entry point"
-    ok "built both pages into dist/"
+    ok "built all three pages into dist/"
 fi
 
 # --------------------------------------------------------------- 3. publish --
@@ -506,7 +507,8 @@ else
     # its marker, or by carrying both of our entry points.
     if [ -d "$WEBROOT" ] && [ -n "$(ls -A "$WEBROOT" 2>/dev/null || true)" ] \
         && [ ! -f "$WEBROOT/.ail-website" ] \
-        && { [ ! -f "$WEBROOT/index.html" ] || [ ! -f "$WEBROOT/simulator/index.html" ]; }; then
+        && { [ ! -f "$WEBROOT/index.html" ] || [ ! -f "$WEBROOT/privacy/index.html" ] \
+             || [ ! -f "$WEBROOT/simulator/index.html" ]; }; then
         die "$WEBROOT is not empty and was not published by this script — refusing to overwrite it"
     fi
 
@@ -724,6 +726,7 @@ check() {
 }
 
 check /                                200
+check /privacy/                        200
 check /simulator/                      200
 check /og.png                          200
 check /this-path-does-not-exist        404
@@ -750,6 +753,7 @@ OTHER_LISTENS="$( { nginx -T 2>/dev/null || run_root nginx -T 2>/dev/null || tru
 cat <<SUMMARY
 
   site        http://localhost:$PORT/
+  privacy     http://localhost:$PORT/privacy/
   simulator   http://localhost:$PORT/simulator/
   contact     http://localhost:$PORT/api/contact $CONTACT_SUMMARY
 

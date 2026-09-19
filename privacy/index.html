@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="theme-color" content="#08090a" />
+    <title>privacy policy · aetherius intelligence labs</title>
+    <meta
+      name="description"
+      content="how aetherius intelligence labs handles the contact details collected through this site and through our advertising: used only to reply to your enquiry, never sold, never shared for anyone else's marketing, never published."
+    />
+
+    <!-- The URL an advertising platform reviews and a campaign links to: it must
+         stay indexable and reachable without a login, so there is deliberately
+         no `noindex` here. The canonical URL rides on og:url below — a
+         `<link rel="canonical">` is resolved by vite as an asset reference and
+         fails the build when VITE_SITE_URL is unset. -->
+
+    <!-- inline svg favicon: the AIL mark — cyan diamond in a white ring -->
+    <link
+      rel="icon"
+      type="image/svg+xml"
+      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><rect width='24' height='24' rx='5' fill='%2308090a'/><circle cx='12' cy='12' r='9' fill='none' stroke='rgba(255,255,255,0.45)' stroke-width='1.4'/><path d='M12 5 19 12 12 19 5 12Z' fill='none' stroke='%2322d3ee' stroke-width='1.4' stroke-linejoin='round'/><circle cx='12' cy='12' r='2.1' fill='%2322d3ee'/></svg>"
+    />
+
+    <!-- social -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Aetherius Intelligence Labs" />
+    <meta property="og:title" content="Privacy Policy · Aetherius Intelligence Labs" />
+    <meta property="og:description" content="we collect contact details for one reason: to reply to you. never sold, never shared for anyone else's marketing, never published." />
+    <meta property="og:url" content="%VITE_SITE_URL%/privacy/" />
+    <meta property="og:image" content="%VITE_SITE_URL%/og.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Aetherius Intelligence Labs" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Privacy Policy · Aetherius Intelligence Labs" />
+    <meta name="twitter:description" content="we collect contact details for one reason: to reply to you. never sold, never shared for anyone else's marketing, never published." />
+    <meta name="twitter:image" content="%VITE_SITE_URL%/og.png" />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/site/privacy/main.tsx"></script>
+  </body>
+</html>
