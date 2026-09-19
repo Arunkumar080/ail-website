@@ -55,7 +55,7 @@ export function Contact() {
       if (!res.ok || !body.ok) {
         setStatus({
           state: 'error',
-          message: body.error || 'could not send that — email deploy@aetheriuslabs.com instead.',
+          message: body.error || 'could not send that — email info@aetheriuslabs.com instead.',
         });
         return;
       }
@@ -66,7 +66,7 @@ export function Contact() {
     } catch {
       // The relay is down, or the visitor is offline. Either way the mailto in
       // the left column still works, so point at it rather than just failing.
-      setStatus({ state: 'error', message: 'network error — email deploy@aetheriuslabs.com instead.' });
+      setStatus({ state: 'error', message: 'network error — email info@aetheriuslabs.com instead.' });
     }
   };
 
@@ -86,8 +86,8 @@ export function Contact() {
             rate within a week — or tell you there is nothing worth taking.
           </p>
           <div className="mt-7 flex flex-col gap-2.5 font-mono text-[13px] tracking-[0.06em]">
-            <a href="mailto:deploy@aetheriuslabs.com" className="w-fit text-cyan transition-colors duration-300 hover:text-cyan-lift">
-              deploy@aetheriuslabs.com
+            <a href="mailto:info@aetheriuslabs.com" className="w-fit text-cyan transition-colors duration-300 hover:text-cyan-lift">
+              info@aetheriuslabs.com
             </a>
             <span className="text-muted">london · singapore · remote</span>
           </div>

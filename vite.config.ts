@@ -17,12 +17,16 @@ export default defineConfig({
   },
   build: {
     rollupOptions: {
-      // Two pages: the public marketing shell at `/` and the perimeter-node
-      // canvas app (gateway → value-delta simulator → ledger → phantom) at
-      // `/simulator/`. They share nothing at runtime, so the site never
-      // downloads three.js.
+      // Three pages: the public marketing shell at `/`, the privacy policy at
+      // `/privacy/` (its own URL because ad platforms need a stable one to
+      // review and link to), and the perimeter-node canvas app (gateway →
+      // value-delta simulator → ledger → phantom) at `/simulator/`. The first
+      // two share the site's stylesheet and chrome; none of them share
+      // anything with the canvas app at runtime, so the site never downloads
+      // three.js.
       input: {
         site: fileURLToPath(new URL('index.html', import.meta.url)),
+        privacy: fileURLToPath(new URL('privacy/index.html', import.meta.url)),
         simulator: fileURLToPath(new URL('simulator/index.html', import.meta.url)),
       },
     },
