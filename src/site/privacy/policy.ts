@@ -28,10 +28,10 @@ export const EFFECTIVE = { iso: '2026-09-20', label: '20 September 2026' };
 export const CONTROLLER = 'Aetherius Intelligence Labs Ltd';
 
 /** Where privacy requests go. Must be a mailbox someone actually reads. */
-export const CONTACT_EMAIL = 'deploy@aetheriuslabs.com';
+export const CONTACT_EMAIL = 'info@aetheriuslabs.com';
 
 /** The sales address already published on the front page. */
-export const SALES_EMAIL = 'deploy@aetheriuslabs.com';
+export const SALES_EMAIL = 'info@aetheriuslabs.com';
 
 export const REGISTERED_ADDRESS = 'London, United Kingdom · Singapore';
 

@@ -49,8 +49,8 @@ export function Footer({ base = '' }: { base?: string }) {
 
         <div>
           <h4 className={HEAD}>{'// contact'}</h4>
-          <a href="mailto:deploy@aetheriuslabs.com" className="text-[15.5px] text-ink transition-colors duration-300 hover:text-cyan-lift">
-            deploy@aetheriuslabs.com
+          <a href="mailto:info@aetheriuslabs.com" className="text-[15.5px] text-ink transition-colors duration-300 hover:text-cyan-lift">
+            info@aetheriuslabs.com
           </a>
           <div className="mt-4">
             <a
