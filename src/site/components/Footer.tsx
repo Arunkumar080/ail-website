@@ -1,4 +1,4 @@
-import { COMPANY_LINKS, PRIVACY_HREF, PRODUCT_LINKS } from '../links.ts';
+import { COMPANY_LINKS, LINKEDIN_HREF, PRIVACY_HREF, PRODUCT_LINKS } from '../links.ts';
 import { Container } from './Container.tsx';
 import { Logo, Wordmark } from './Logo.tsx';
 
@@ -61,7 +61,7 @@ export function Footer({ base = '' }: { base?: string }) {
             </a>
           </div>
           <div className="mt-[18px] flex items-center gap-3.5 text-[14.5px]">
-            <a href="#linkedin" className={LINK}>
+            <a href={LINKEDIN_HREF} target="_blank" rel="noopener noreferrer" className={LINK}>
               LinkedIn
             </a>
             <span className="text-[#5c6469]">/</span>

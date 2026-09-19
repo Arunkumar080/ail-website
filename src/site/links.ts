@@ -16,6 +16,10 @@ export const SIMULATOR_HREF = '/simulator/';
  */
 export const PRIVACY_HREF = '/privacy/';
 
+/** The company page. The only outbound social link the footer has so far. */
+export const LINKEDIN_HREF =
+  'https://www.linkedin.com/company/aetherius-intelligence-labs/posts/?viewAsMember=true';
+
 /** Footer column 2 — the nav list with the simulator appended in place of engagement. */
 export const PRODUCT_LINKS = [
   { href: '#interventions', label: 'Services' },
